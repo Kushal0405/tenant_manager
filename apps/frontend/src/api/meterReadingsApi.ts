@@ -2,8 +2,7 @@ import type { MeterType, UtilityMeterReading } from "@rent-manager/shared";
 import { baseApi } from "./baseApi";
 
 export interface CreateMeterReadingInput {
-  unit: string;
-  meterType: MeterType;
+  meter: string;
   readingDate: string;
   currentReadingValue: number;
   ratePerUnitMinor: number;
@@ -13,14 +12,14 @@ export interface CreateMeterReadingInput {
 export interface BillMeterReadingInput {
   id: string;
   lease: string;
-  month?: string;
+  periodDate?: string;
 }
 
 export const meterReadingsApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     listMeterReadings: builder.query<
       UtilityMeterReading[],
-      { unit?: string; meterType?: MeterType; billed?: boolean } | void
+      { unit?: string; meter?: string; meterType?: MeterType; billed?: boolean } | void
     >({
       query: (params) => ({ url: "/meter-readings", params: params ?? undefined }),
       providesTags: [{ type: "MeterReading", id: "LIST" }],

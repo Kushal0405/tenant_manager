@@ -3,10 +3,11 @@ import { Invoice, Lease } from "../models/index.js";
 import { notFound } from "../utils/httpError.js";
 import {
   addLineItemToInvoice,
-  generateMonthlyInvoicesForActiveLeases,
-  getOrCreateMonthlyInvoice,
-  monthKey,
+  generateInvoicesForActiveLeases,
+  getOrCreatePeriodInvoice,
+  periodStartContaining,
   refreshOverdueInvoiceStatuses,
+  type RentFrequency,
 } from "../services/billingService.js";
 import { applyLateFeesForActiveLeases } from "../services/lateFeeService.js";
 import { createChargeSchema } from "../validators/invoice.js";
@@ -33,8 +34,9 @@ export async function createCharge(req: Request, res: Response) {
   if (!lease) throw notFound("Lease");
 
   const now = new Date();
-  const month = input.month ?? monthKey(now);
-  const { invoice } = await getOrCreateMonthlyInvoice(lease, month, now);
+  const targetDate = input.periodDate ?? now;
+  const periodStart = periodStartContaining(lease.startDate, lease.rentFrequency as RentFrequency, targetDate);
+  const { invoice } = await getOrCreatePeriodInvoice(lease, periodStart, now);
   const updated = await addLineItemToInvoice(
     invoice,
     { type: input.type, description: input.description, amountMinor: input.amountMinor },
@@ -48,7 +50,7 @@ export async function createCharge(req: Request, res: Response) {
 /** Manually triggers the same work the nightly cron does — handy for demos/testing. */
 export async function runBillingCycleNow(_req: Request, res: Response) {
   const now = new Date();
-  const invoicesCreated = await generateMonthlyInvoicesForActiveLeases(now);
+  const invoicesCreated = await generateInvoicesForActiveLeases(now);
   const markedOverdue = await refreshOverdueInvoiceStatuses(now);
   const lateFeesApplied = await applyLateFeesForActiveLeases(now);
   res.json({ invoicesCreated, markedOverdue, lateFeesApplied });

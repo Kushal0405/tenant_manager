@@ -4,6 +4,7 @@ import type {
   Lease,
   LedgerEntry,
   LeaseTerms,
+  RentFrequency,
 } from "@rent-manager/shared";
 import { baseApi } from "./baseApi";
 
@@ -15,6 +16,7 @@ export interface CreateLeaseInput {
   rentAmountMinor: number;
   depositAmountMinor: number;
   dueDayOfMonth: number;
+  rentFrequency: RentFrequency;
   lateFeeRule: LateFeeRule;
 }
 

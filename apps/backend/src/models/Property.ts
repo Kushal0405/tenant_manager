@@ -20,9 +20,11 @@ const propertySchema = new Schema(
     address: { type: addressSchema, required: true },
     type: {
       type: String,
-      enum: ["residential", "commercial", "mixed"],
+      enum: ["flat", "hall", "plot", "shop"],
       required: true,
     },
+    // Only meaningful for type "flat".
+    numberOfFloors: { type: Number, min: 1 },
   },
   { timestamps: { createdAt: true, updatedAt: false } },
 );

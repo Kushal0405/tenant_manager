@@ -22,6 +22,7 @@ const leaseAmendmentSchema = new Schema(
       dueDayOfMonth: { type: Number, min: 1, max: 31 },
       endDate: { type: Date },
       lateFeeRule: { type: lateFeeRuleSchema },
+      rentFrequency: { type: String, enum: ["monthly", "quarterly", "half_yearly", "yearly"] },
     },
     reason: { type: String, trim: true },
     amendedAt: { type: Date, default: () => new Date(), required: true },
@@ -39,6 +40,12 @@ const leaseSchema = new Schema(
     rentAmountMinor: { type: Number, required: true, min: 0 },
     depositAmountMinor: { type: Number, required: true, min: 0 },
     dueDayOfMonth: { type: Number, required: true, min: 1, max: 31 },
+    rentFrequency: {
+      type: String,
+      enum: ["monthly", "quarterly", "half_yearly", "yearly"],
+      default: "monthly",
+      required: true,
+    },
     lateFeeRule: { type: lateFeeRuleSchema, required: true },
     status: {
       type: String,
@@ -51,6 +58,9 @@ const leaseSchema = new Schema(
     depositReturnedMinor: { type: Number, min: 0 },
     depositDeductionNote: { type: String, trim: true },
     amendments: { type: [leaseAmendmentSchema], default: [] },
+    // Set once the historical-rent backfill has run (rentStartDate was in the
+    // past at creation) — the date up to which past invoices were generated.
+    backfilledThrough: { type: Date },
   },
   { timestamps: { createdAt: true, updatedAt: false } },
 );

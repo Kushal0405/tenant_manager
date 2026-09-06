@@ -1,16 +1,18 @@
 import type { Request, Response } from "express";
-import { Lease, Unit, UtilityMeterReading } from "../models/index.js";
+import { Lease, Meter, UtilityMeterReading } from "../models/index.js";
 import { badRequest, notFound } from "../utils/httpError.js";
 import {
   addLineItemToInvoice,
-  getOrCreateMonthlyInvoice,
-  monthKey,
+  getOrCreatePeriodInvoice,
+  periodStartContaining,
+  type RentFrequency,
 } from "../services/billingService.js";
 import { billMeterReadingSchema, createMeterReadingSchema } from "../validators/meterReading.js";
 
 export async function list(req: Request, res: Response) {
   const filter: Record<string, unknown> = { owner: req.userId };
   if (req.query.unit) filter.unit = req.query.unit;
+  if (req.query.meter) filter.meter = req.query.meter;
   if (req.query.meterType) filter.meterType = req.query.meterType;
   if (req.query.billed !== undefined) filter.billed = req.query.billed === "true";
   const readings = await UtilityMeterReading.find(filter).sort({ readingDate: -1 });
@@ -20,13 +22,13 @@ export async function list(req: Request, res: Response) {
 export async function create(req: Request, res: Response) {
   const input = createMeterReadingSchema.parse(req.body);
 
-  const unit = await Unit.findOne({ _id: input.unit, owner: req.userId });
-  if (!unit) throw notFound("Unit");
+  const meter = await Meter.findOne({ _id: input.meter, owner: req.userId });
+  if (!meter) throw notFound("Meter");
 
-  const lastReading = await UtilityMeterReading.findOne({
-    unit: input.unit,
-    meterType: input.meterType,
-  }).sort({ readingDate: -1, createdAt: -1 });
+  const lastReading = await UtilityMeterReading.findOne({ meter: meter._id }).sort({
+    readingDate: -1,
+    createdAt: -1,
+  });
 
   const previousReadingValue = lastReading?.currentReadingValue ?? 0;
   if (input.currentReadingValue < previousReadingValue) {
@@ -37,10 +39,11 @@ export async function create(req: Request, res: Response) {
   const amountMinor = Math.round(unitsConsumed * input.ratePerUnitMinor);
 
   const reading = await UtilityMeterReading.create({
-    unit: input.unit,
-    property: unit.property,
+    meter: meter._id,
+    unit: meter.unit,
+    property: meter.property,
     owner: req.userId,
-    meterType: input.meterType,
+    meterType: meter.utilityType,
     readingDate: input.readingDate,
     previousReadingValue,
     currentReadingValue: input.currentReadingValue,
@@ -54,20 +57,24 @@ export async function create(req: Request, res: Response) {
   res.status(201).json(reading);
 }
 
-/** Turns a recorded meter reading into a utility charge on the tenant's invoice for the given month. */
+/** Turns a recorded meter reading into a utility charge on the tenant's invoice for the given period. */
 export async function bill(req: Request, res: Response) {
   const input = billMeterReadingSchema.parse(req.body);
 
   const reading = await UtilityMeterReading.findOne({ _id: req.params.id, owner: req.userId });
   if (!reading) throw notFound("Meter reading");
   if (reading.billed) throw badRequest("This reading has already been billed");
+  if (!reading.unit) {
+    throw badRequest("A main-meter reading covers the whole property and can't be billed to a single lease");
+  }
 
   const lease = await Lease.findOne({ _id: input.lease, owner: req.userId, unit: reading.unit });
   if (!lease) throw notFound("Lease for this unit");
 
   const now = new Date();
-  const month = input.month ?? monthKey(now);
-  const { invoice } = await getOrCreateMonthlyInvoice(lease, month, now);
+  const targetDate = input.periodDate ?? now;
+  const periodStart = periodStartContaining(lease.startDate, lease.rentFrequency as RentFrequency, targetDate);
+  const { invoice } = await getOrCreatePeriodInvoice(lease, periodStart, now);
   await addLineItemToInvoice(
     invoice,
     {

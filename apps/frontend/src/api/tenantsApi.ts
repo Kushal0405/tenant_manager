@@ -10,6 +10,13 @@ export interface CreateTenantInput {
   idProofNumber?: string;
 }
 
+export interface MarkSelfAsLesseeInput {
+  phone: string;
+  alternatePhone?: string;
+  idProofType?: string;
+  idProofNumber?: string;
+}
+
 export const tenantsApi = baseApi.injectEndpoints({
   endpoints: (builder) => ({
     listTenants: builder.query<Tenant[], void>({
@@ -23,7 +30,11 @@ export const tenantsApi = baseApi.injectEndpoints({
       query: (body) => ({ url: "/tenants", method: "POST", body }),
       invalidatesTags: [{ type: "Tenant", id: "LIST" }],
     }),
+    markSelfAsLessee: builder.mutation<Tenant, MarkSelfAsLesseeInput>({
+      query: (body) => ({ url: "/tenants/self", method: "POST", body }),
+      invalidatesTags: [{ type: "Tenant", id: "LIST" }],
+    }),
   }),
 });
 
-export const { useListTenantsQuery, useCreateTenantMutation } = tenantsApi;
+export const { useListTenantsQuery, useCreateTenantMutation, useMarkSelfAsLesseeMutation } = tenantsApi;

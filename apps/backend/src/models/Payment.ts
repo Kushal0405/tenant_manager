@@ -8,10 +8,11 @@ const paymentSchema = new Schema(
     tenant: { type: Schema.Types.ObjectId, ref: "Tenant", required: true, index: true },
     owner: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     amountMinor: { type: Number, required: true, min: 1 },
-    method: { type: String, enum: ["cash", "bank", "upi", "card"], required: true },
+    method: { type: String, enum: ["cash", "bank", "upi", "card", "other"], required: true },
     date: { type: Date, required: true },
     recordedBy: { type: Schema.Types.ObjectId, ref: "User", required: true },
     note: { type: String, trim: true },
+    isBackfilled: { type: Boolean, default: false, required: true },
   },
   { timestamps: { createdAt: true, updatedAt: false } },
 );

@@ -10,6 +10,9 @@ const tenantSchema = new Schema(
     alternatePhone: { type: String, trim: true },
     idProofType: { type: String, trim: true },
     idProofNumber: { type: String, trim: true },
+    // Set when this tenant record IS the app's own logged-in user (they're
+    // renting a place themselves and marked themselves as the lessee).
+    linkedUser: { type: Schema.Types.ObjectId, ref: "User" },
   },
   { timestamps: { createdAt: true, updatedAt: false } },
 );

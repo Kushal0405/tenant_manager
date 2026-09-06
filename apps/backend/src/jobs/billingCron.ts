@@ -1,13 +1,13 @@
 import cron, { type ScheduledTask } from "node-cron";
 import {
-  generateMonthlyInvoicesForActiveLeases,
+  generateInvoicesForActiveLeases,
   refreshOverdueInvoiceStatuses,
 } from "../services/billingService.js";
 import { applyLateFeesForActiveLeases } from "../services/lateFeeService.js";
 
-/** Generates this month's rent invoices, flips overdue statuses, and applies late fees. */
+/** Generates each lease's current-period rent invoice, flips overdue statuses, and applies late fees. */
 export async function runDailyBillingCycle(now = new Date()) {
-  const invoicesCreated = await generateMonthlyInvoicesForActiveLeases(now);
+  const invoicesCreated = await generateInvoicesForActiveLeases(now);
   const markedOverdue = await refreshOverdueInvoiceStatuses(now);
   const lateFeesApplied = await applyLateFeesForActiveLeases(now);
 

@@ -8,6 +8,7 @@ export interface CreateUnitInput {
   bathrooms: number;
   sqft: number;
   baseRentMinor: number;
+  floor?: number;
 }
 
 export const unitsApi = baseApi.injectEndpoints({

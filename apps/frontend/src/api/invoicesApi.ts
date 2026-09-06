@@ -3,7 +3,7 @@ import { baseApi } from "./baseApi";
 
 export interface CreateChargeInput {
   lease: string;
-  month?: string;
+  periodDate?: string;
   type: InvoiceLineItemType;
   description: string;
   amountMinor: number;

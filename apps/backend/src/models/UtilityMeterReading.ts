@@ -3,7 +3,9 @@ import { applyIdTransform } from "./toJSONPlugin.js";
 
 const utilityMeterReadingSchema = new Schema(
   {
-    unit: { type: Schema.Types.ObjectId, ref: "Unit", required: true, index: true },
+    meter: { type: Schema.Types.ObjectId, ref: "Meter", required: true, index: true },
+    // Denormalized from the meter for querying: absent for a reading on a main meter.
+    unit: { type: Schema.Types.ObjectId, ref: "Unit" },
     property: { type: Schema.Types.ObjectId, ref: "Property", required: true, index: true },
     owner: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
     meterType: { type: String, enum: ["electricity", "water", "gas"], required: true },
@@ -20,7 +22,7 @@ const utilityMeterReadingSchema = new Schema(
   { timestamps: { createdAt: true, updatedAt: false } },
 );
 
-utilityMeterReadingSchema.index({ unit: 1, meterType: 1, readingDate: -1 });
+utilityMeterReadingSchema.index({ meter: 1, readingDate: -1 });
 
 applyIdTransform(utilityMeterReadingSchema);
 

@@ -29,13 +29,17 @@ export interface Paginated<T> {
 // Auth
 // ---------------------------------------------------------------------------
 
-export type UserRole = "owner";
+// A single account can wear more than one hat — e.g. an owner who also rents
+// a place elsewhere and marks themselves as a lessee on that lease. This is a
+// classification, not a separate login/permission system: every account
+// still logs in and manages its own data the same way.
+export type UserRole = "owner" | "lessee" | "manager";
 
 export interface UserPublic {
   id: string;
   name: string;
   email: string;
-  role: UserRole;
+  roles: UserRole[];
   createdAt: string;
 }
 
@@ -48,7 +52,7 @@ export interface AuthResponse {
 // Property / Unit
 // ---------------------------------------------------------------------------
 
-export type PropertyType = "residential" | "commercial" | "mixed";
+export type PropertyType = "flat" | "hall" | "plot" | "shop";
 
 export interface Address {
   line1: string;
@@ -65,6 +69,8 @@ export interface Property {
   name: string;
   address: Address;
   type: PropertyType;
+  /** Only meaningful for type "flat" — how many floors the building has. */
+  numberOfFloors?: number;
   createdAt: string;
 }
 
@@ -80,6 +86,8 @@ export interface Unit {
   sqft: number;
   baseRentMinor: MoneyMinor;
   status: UnitStatus;
+  /** Which floor this unit is on — only used for "flat" properties. */
+  floor?: number;
   createdAt: string;
 }
 
@@ -96,6 +104,9 @@ export interface Tenant {
   alternatePhone?: string;
   idProofType?: string;
   idProofNumber?: string;
+  /** Set when this tenant record IS the app's own logged-in user — i.e. the
+   * owner is renting a place themselves and marked themselves as the lessee. */
+  linkedUserId?: string;
   createdAt: string;
 }
 
@@ -114,6 +125,9 @@ export interface LateFeeRule {
   feePercent?: number;
 }
 
+/** How often rent is charged. Periods are anchored to the lease's start date, not the calendar. */
+export type RentFrequency = "monthly" | "quarterly" | "half_yearly" | "yearly";
+
 /** Editable terms of a lease — used both for lease creation and amendments. */
 export interface LeaseTerms {
   rentAmountMinor: MoneyMinor;
@@ -121,6 +135,7 @@ export interface LeaseTerms {
   dueDayOfMonth: number;
   endDate: string;
   lateFeeRule: LateFeeRule;
+  rentFrequency: RentFrequency;
 }
 
 export interface LeaseAmendment {
@@ -140,12 +155,15 @@ export interface Lease {
   rentAmountMinor: MoneyMinor;
   depositAmountMinor: MoneyMinor;
   dueDayOfMonth: number;
+  rentFrequency: RentFrequency;
   lateFeeRule: LateFeeRule;
   status: LeaseStatus;
   terminatedAt?: string;
   depositReturnedMinor?: MoneyMinor;
   depositDeductionNote?: string;
   amendments: LeaseAmendment[];
+  /** True once the historical-rent backfill has run for this lease (rentStartDate in the past at creation). */
+  backfilledThrough?: string;
   createdAt: string;
 }
 
@@ -172,7 +190,10 @@ export interface Invoice {
   id: string;
   lease: string;
   owner: string;
-  month: string; // "YYYY-MM"
+  /** Display label for the billing period — "YYYY-MM" for monthly, "YYYY-MM-slash-YYYY-MM" style ranges for longer frequencies. */
+  month: string;
+  periodStart: string;
+  periodEnd: string;
   issueDate: string;
   dueDate: string;
   lineItems: InvoiceLineItem[];
@@ -181,10 +202,12 @@ export interface Invoice {
   amountPaidMinor: MoneyMinor;
   status: InvoiceStatus;
   lateFeeApplied: boolean;
+  /** True for invoices generated retroactively by the historical rent backfill, not through normal billing. */
+  isBackfilled: boolean;
   createdAt: string;
 }
 
-export type PaymentMethod = "cash" | "bank" | "upi" | "card";
+export type PaymentMethod = "cash" | "bank" | "upi" | "card" | "other";
 
 export interface Payment {
   id: string;
@@ -197,6 +220,8 @@ export interface Payment {
   date: string;
   recordedBy: string;
   note?: string;
+  /** True for payments auto-recorded by the historical rent backfill (assumed paid), not actually collected via the app. */
+  isBackfilled: boolean;
   createdAt: string;
 }
 
@@ -252,15 +277,31 @@ export interface TaxPayment {
 }
 
 // ---------------------------------------------------------------------------
-// Utility meter readings (electricity / water / gas) — feed tenant utility
-// charges on an invoice once billed.
+// Meters (main / sub) and utility meter readings
 // ---------------------------------------------------------------------------
 
 export type MeterType = "electricity" | "water" | "gas";
+export type MeterKind = "main" | "sub";
+
+export interface Meter {
+  id: string;
+  owner: string;
+  property: string;
+  /** Required for a "sub" meter (which unit it serves); absent for a "main" meter, which covers the whole property. */
+  unit?: string;
+  kind: MeterKind;
+  utilityType: MeterType;
+  /** Required for a "sub" meter — the property's main meter of the same utility type that it draws from. */
+  parentMeter?: string;
+  label: string;
+  meterNumber?: string;
+  createdAt: string;
+}
 
 export interface UtilityMeterReading {
   id: string;
-  unit: string;
+  meter: string;
+  unit?: string;
   property: string;
   owner: string;
   meterType: MeterType;

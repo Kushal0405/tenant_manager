@@ -11,6 +11,8 @@ const unitSchema = new Schema(
     sqft: { type: Number, required: true, min: 0 },
     baseRentMinor: { type: Number, required: true, min: 0 },
     status: { type: String, enum: ["vacant", "occupied"], default: "vacant", required: true },
+    // Which floor this unit is on — only used for "flat" properties.
+    floor: { type: Number, min: 0 },
   },
   { timestamps: { createdAt: true, updatedAt: false } },
 );

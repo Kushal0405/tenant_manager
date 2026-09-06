@@ -9,10 +9,16 @@ const addressSchema = z.object({
   country: z.string().min(1),
 });
 
-export const createPropertySchema = z.object({
+const basePropertySchema = z.object({
   name: z.string().min(1),
   address: addressSchema,
-  type: z.enum(["residential", "commercial", "mixed"]),
+  type: z.enum(["flat", "hall", "plot", "shop"]),
+  numberOfFloors: z.number().int().min(1).optional(),
 });
 
-export const updatePropertySchema = createPropertySchema.partial();
+export const createPropertySchema = basePropertySchema.refine(
+  (input) => input.type !== "flat" || input.numberOfFloors !== undefined,
+  { message: "numberOfFloors is required for flats" },
+);
+
+export const updatePropertySchema = basePropertySchema.partial();

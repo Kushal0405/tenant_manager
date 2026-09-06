@@ -6,6 +6,7 @@ import {
   Invoice,
   Lease,
   LedgerEntry,
+  Meter,
   Payment,
   Property,
   TaxPayment,
@@ -14,7 +15,12 @@ import {
   User,
   UtilityMeterReading,
 } from "../models/index.js";
-import { getOrCreateMonthlyInvoice, monthKey, refreshOverdueInvoiceStatuses } from "../services/billingService.js";
+import {
+  generateInvoicesForActiveLeases,
+  getOrCreatePeriodInvoice,
+  periodStartContaining,
+  refreshOverdueInvoiceStatuses,
+} from "../services/billingService.js";
 import { applyLateFeesForActiveLeases } from "../services/lateFeeService.js";
 import { amendLease, createLease } from "../services/leaseService.js";
 import { recordPayment } from "../services/paymentService.js";
@@ -41,6 +47,7 @@ async function main() {
     Payment.deleteMany({}),
     Expense.deleteMany({}),
     TaxPayment.deleteMany({}),
+    Meter.deleteMany({}),
     UtilityMeterReading.deleteMany({}),
     LedgerEntry.deleteMany({}),
   ]);
@@ -53,7 +60,8 @@ async function main() {
     {
       owner: owner._id,
       name: "Sunrise Apartments",
-      type: "residential",
+      type: "flat",
+      numberOfFloors: 2,
       address: {
         line1: "12 Sunrise Boulevard",
         city: "Pune",
@@ -64,8 +72,8 @@ async function main() {
     },
     {
       owner: owner._id,
-      name: "Lakeview Commercial Plaza",
-      type: "commercial",
+      name: "Lakeview Shopping Plaza",
+      type: "shop",
       address: {
         line1: "88 Lakeview Road",
         city: "Pune",
@@ -77,9 +85,9 @@ async function main() {
   ]);
 
   const unitSpecs = [
-    { property: propertyOne, label: "A-101", bedrooms: 2, bathrooms: 2, sqft: 950, baseRentMinor: 2_500_000 },
-    { property: propertyOne, label: "A-102", bedrooms: 1, bathrooms: 1, sqft: 620, baseRentMinor: 1_800_000 },
-    { property: propertyOne, label: "A-201", bedrooms: 3, bathrooms: 2, sqft: 1250, baseRentMinor: 3_200_000 },
+    { property: propertyOne, label: "A-101", bedrooms: 2, bathrooms: 2, sqft: 950, baseRentMinor: 2_500_000, floor: 1 },
+    { property: propertyOne, label: "A-102", bedrooms: 1, bathrooms: 1, sqft: 620, baseRentMinor: 1_800_000, floor: 1 },
+    { property: propertyOne, label: "A-201", bedrooms: 3, bathrooms: 2, sqft: 1250, baseRentMinor: 3_200_000, floor: 2 },
     { property: propertyTwo, label: "Shop-1", bedrooms: 0, bathrooms: 1, sqft: 400, baseRentMinor: 4_000_000 },
     { property: propertyTwo, label: "Shop-2", bedrooms: 0, bathrooms: 1, sqft: 550, baseRentMinor: 5_000_000 },
   ];
@@ -93,6 +101,7 @@ async function main() {
       bathrooms: spec.bathrooms,
       sqft: spec.sqft,
       baseRentMinor: spec.baseRentMinor,
+      floor: spec.floor,
       status: "vacant",
     })),
   );
@@ -109,27 +118,46 @@ async function main() {
     tenantSpecs.map((spec) => ({ ...spec, owner: owner._id, idProofType: "PAN", idProofNumber: "ABCDE1234F" })),
   );
 
-  const leaseStart = monthsAgo(6);
-  const leaseEnd = new Date(leaseStart.getFullYear() + 1, leaseStart.getMonth(), leaseStart.getDate());
+  const recentStart = monthsAgo(6);
+  const recentEnd = new Date(recentStart.getFullYear() + 1, recentStart.getMonth(), recentStart.getDate());
+
+  // Lease 4 (Vikram Singh, Shop-2) started 5 years ago on a quarterly cycle —
+  // showcases the historical-rent backfill: every elapsed quarter since then
+  // gets a real, paid invoice generated automatically.
+  const longAgoStart = monthsAgo(60, 15);
+  const longAgoEnd = new Date(longAgoStart.getFullYear() + 7, longAgoStart.getMonth(), longAgoStart.getDate());
+
+  const leaseSpecs = [
+    { startDate: recentStart, endDate: recentEnd, dueDayOfMonth: 1, rentFrequency: "monthly" as const },
+    { startDate: recentStart, endDate: recentEnd, dueDayOfMonth: 5, rentFrequency: "monthly" as const },
+    { startDate: recentStart, endDate: recentEnd, dueDayOfMonth: 10, rentFrequency: "monthly" as const },
+    { startDate: recentStart, endDate: recentEnd, dueDayOfMonth: 1, rentFrequency: "monthly" as const },
+    { startDate: longAgoStart, endDate: longAgoEnd, dueDayOfMonth: 15, rentFrequency: "quarterly" as const },
+  ];
 
   const leases = [];
   for (let i = 0; i < units.length; i++) {
     const unit = units[i];
     const tenant = tenants[i];
+    const spec = leaseSpecs[i];
     const lease = await createLease({
       unit: unit._id.toString(),
       tenant: tenant._id.toString(),
       owner: owner._id.toString(),
-      startDate: leaseStart,
-      endDate: leaseEnd,
+      startDate: spec.startDate,
+      endDate: spec.endDate,
       rentAmountMinor: unit.baseRentMinor,
       depositAmountMinor: unit.baseRentMinor * 2,
-      dueDayOfMonth: [1, 5, 10, 1, 15][i],
+      dueDayOfMonth: spec.dueDayOfMonth,
+      rentFrequency: spec.rentFrequency,
       lateFeeRule: { graceDays: 5, feeType: "flat", feeValueMinor: 50_000 },
     });
     leases.push(lease);
   }
   console.log(`[seed] created ${leases.length} active leases (units now occupied)`);
+  console.log(
+    `[seed] lease for ${tenants[4].name} started 5 years ago quarterly — backfilled through ${leases[4].backfilledThrough?.toISOString().slice(0, 10)}`,
+  );
 
   // Showcase the rental-agreement amendment feature: a rent revision on lease[0].
   await amendLease(
@@ -141,19 +169,19 @@ async function main() {
   );
   console.log("[seed] recorded a rent-revision amendment on the first lease");
 
-  // 3 months of invoice/payment history per lease, with varied payment behavior.
+  // 3 months of invoice/payment history for the 4 recent monthly leases, with varied payment behavior.
   for (let m = 2; m >= 0; m--) {
     const issueDate = monthsAgo(m);
-    const month = monthKey(issueDate);
 
-    for (let i = 0; i < leases.length; i++) {
+    for (let i = 0; i < 4; i++) {
       const lease = await Lease.findById(leases[i]._id);
       if (!lease) continue;
 
-      const { invoice } = await getOrCreateMonthlyInvoice(lease, month, issueDate);
+      const periodStart = periodStartContaining(lease.startDate, "monthly", issueDate);
+      const { invoice } = await getOrCreatePeriodInvoice(lease, periodStart, issueDate);
 
       // Tenant 0: always pays in full. Tenant 1: pays partially. Tenant 2: pays late
-      // but in full. Tenant 3: leaves the oldest month unpaid (overdue). Tenant 4: pays in full.
+      // but in full. Tenant 3: leaves the oldest month unpaid (overdue).
       if (i === 1) {
         await recordPayment({
           invoiceId: invoice._id.toString(),
@@ -179,7 +207,9 @@ async function main() {
   }
   console.log("[seed] generated 3 months of invoice/payment history");
 
-  // Mark old unpaid invoices overdue and apply any late fees, same as the nightly cron.
+  // Same as the nightly cron: ensure every active lease has its current-period invoice,
+  // flip overdue statuses, and apply late fees.
+  await generateInvoicesForActiveLeases();
   await refreshOverdueInvoiceStatuses();
   await applyLateFeesForActiveLeases();
 
@@ -205,7 +235,7 @@ async function main() {
       owner: owner._id,
       property: propertyTwo._id,
       taxType: "water_bill",
-      period: monthKey(monthsAgo(1)),
+      period: `${monthsAgo(1).getFullYear()}-${String(monthsAgo(1).getMonth() + 1).padStart(2, "0")}`,
       amountMinor: 250_000,
       dueDate: monthsAgo(1, 20),
       paidDate: monthsAgo(1, 15),
@@ -214,12 +244,32 @@ async function main() {
     },
   ]);
 
-  // Utility meter readings for one unit (electricity), one billed, one pending.
-  const meteredUnit = units[0];
-  const firstReading = await UtilityMeterReading.create({
+  // Meters: one main electricity meter for Sunrise Apartments, with a sub-meter on unit A-101.
+  const mainElectricityMeter = await Meter.create({
     owner: owner._id,
     property: propertyOne._id,
-    unit: meteredUnit._id,
+    kind: "main",
+    utilityType: "electricity",
+    label: "Sunrise Apartments — main electricity meter",
+    meterNumber: "MEB-100234",
+  });
+  const subMeter = await Meter.create({
+    owner: owner._id,
+    property: propertyOne._id,
+    unit: units[0]._id,
+    kind: "sub",
+    utilityType: "electricity",
+    parentMeter: mainElectricityMeter._id,
+    label: "A-101 sub-meter",
+    meterNumber: "SUB-9911",
+  });
+
+  // Two readings on the sub-meter: one already billed, one pending.
+  const firstReading = await UtilityMeterReading.create({
+    meter: subMeter._id,
+    unit: subMeter.unit,
+    owner: owner._id,
+    property: propertyOne._id,
     meterType: "electricity",
     readingDate: monthsAgo(1, 28),
     previousReadingValue: 1000,
@@ -230,9 +280,10 @@ async function main() {
     billed: true,
   });
   await UtilityMeterReading.create({
+    meter: subMeter._id,
+    unit: subMeter.unit,
     owner: owner._id,
     property: propertyOne._id,
-    unit: meteredUnit._id,
     meterType: "electricity",
     readingDate: new Date(),
     previousReadingValue: firstReading.currentReadingValue,
@@ -243,7 +294,7 @@ async function main() {
     billed: false,
   });
 
-  console.log("[seed] added expenses, tax payments, and meter readings");
+  console.log("[seed] added expenses, tax payments, meters, and meter readings");
   console.log(`[seed] done. Demo login: ${DEMO_EMAIL} / ${DEMO_PASSWORD}`);
 
   await mongoose.disconnect();

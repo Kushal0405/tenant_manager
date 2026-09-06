@@ -10,3 +10,10 @@ export const createTenantSchema = z.object({
 });
 
 export const updateTenantSchema = createTenantSchema.partial();
+
+export const markSelfAsLesseeSchema = z.object({
+  phone: z.string().min(1),
+  alternatePhone: z.string().optional(),
+  idProofType: z.string().optional(),
+  idProofNumber: z.string().optional(),
+});

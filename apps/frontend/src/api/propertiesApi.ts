@@ -5,6 +5,7 @@ export interface CreatePropertyInput {
   name: string;
   address: Address;
   type: PropertyType;
+  numberOfFloors?: number;
 }
 
 export const propertiesApi = baseApi.injectEndpoints({

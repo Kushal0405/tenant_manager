@@ -23,7 +23,7 @@ import TableRow from "@mui/material/TableRow";
 import Tabs from "@mui/material/Tabs";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import type { InvoiceLineItemType, MeterType, PaymentMethod } from "@rent-manager/shared";
+import type { InvoiceLineItemType, PaymentMethod, RentFrequency } from "@rent-manager/shared";
 import { useCreateChargeMutation } from "../api/invoicesApi";
 import {
   useAmendLeaseMutation,
@@ -37,11 +37,19 @@ import {
   useCreateMeterReadingMutation,
   useListMeterReadingsQuery,
 } from "../api/meterReadingsApi";
+import { useListMetersQuery } from "../api/metersApi";
 import { useRecordPaymentMutation } from "../api/paymentsApi";
 import { useListPropertiesQuery } from "../api/propertiesApi";
 import { useListTenantsQuery } from "../api/tenantsApi";
 import { useListUnitsQuery } from "../api/unitsApi";
 import { formatMoney, parseMoneyToMinor } from "../utils/money";
+
+const FREQUENCY_LABELS: Record<RentFrequency, string> = {
+  monthly: "Monthly",
+  quarterly: "Quarterly",
+  half_yearly: "Half-yearly",
+  yearly: "Yearly",
+};
 
 const STATUS_COLOR: Record<string, "success" | "warning" | "error" | "default"> = {
   active: "success",
@@ -60,7 +68,13 @@ function AmendLeaseDialog({
   onClose,
 }: {
   leaseId: string;
-  current: { rentAmountMinor: number; depositAmountMinor: number; dueDayOfMonth: number; endDate: string };
+  current: {
+    rentAmountMinor: number;
+    depositAmountMinor: number;
+    dueDayOfMonth: number;
+    endDate: string;
+    rentFrequency: RentFrequency;
+  };
   open: boolean;
   onClose: () => void;
 }) {
@@ -68,6 +82,7 @@ function AmendLeaseDialog({
   const [deposit, setDeposit] = useState((current.depositAmountMinor / 100).toString());
   const [dueDayOfMonth, setDueDayOfMonth] = useState(current.dueDayOfMonth.toString());
   const [endDate, setEndDate] = useState(current.endDate.slice(0, 10));
+  const [rentFrequency, setRentFrequency] = useState<RentFrequency>(current.rentFrequency);
   const [effectiveDate, setEffectiveDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [reason, setReason] = useState("");
   const [amendLease, { isLoading, error }] = useAmendLeaseMutation();
@@ -80,6 +95,7 @@ function AmendLeaseDialog({
     if (depositMinor !== current.depositAmountMinor) changes.depositAmountMinor = depositMinor;
     if (Number(dueDayOfMonth) !== current.dueDayOfMonth) changes.dueDayOfMonth = Number(dueDayOfMonth);
     if (endDate !== current.endDate.slice(0, 10)) changes.endDate = endDate;
+    if (rentFrequency !== current.rentFrequency) changes.rentFrequency = rentFrequency;
 
     await amendLease({ leaseId, effectiveDate, reason: reason || undefined, changes }).unwrap();
     onClose();
@@ -113,6 +129,19 @@ function AmendLeaseDialog({
             fullWidth
           />
         </Stack>
+        <TextField
+          select
+          label="Rent frequency"
+          value={rentFrequency}
+          onChange={(e) => setRentFrequency(e.target.value as RentFrequency)}
+          fullWidth
+        >
+          {(Object.keys(FREQUENCY_LABELS) as RentFrequency[]).map((f) => (
+            <MenuItem key={f} value={f}>
+              {FREQUENCY_LABELS[f]}
+            </MenuItem>
+          ))}
+        </TextField>
         <TextField
           label="Effective date"
           type="date"
@@ -296,8 +325,9 @@ function ChargeDialog({ leaseId, open, onClose }: { leaseId: string; open: boole
 }
 
 function MeterReadingsPanel({ unitId, leaseId }: { unitId: string; leaseId: string }) {
+  const { data: subMeters = [] } = useListMetersQuery({ unit: unitId, kind: "sub" });
   const { data: readings = [] } = useListMeterReadingsQuery({ unit: unitId });
-  const [meterType, setMeterType] = useState<MeterType>("electricity");
+  const [meterId, setMeterId] = useState("");
   const [currentReadingValue, setCurrentReadingValue] = useState("");
   const [ratePerUnit, setRatePerUnit] = useState("8");
   const [readingDate, setReadingDate] = useState(() => new Date().toISOString().slice(0, 10));
@@ -306,8 +336,7 @@ function MeterReadingsPanel({ unitId, leaseId }: { unitId: string; leaseId: stri
 
   async function handleAddReading() {
     await createReading({
-      unit: unitId,
-      meterType,
+      meter: meterId,
       readingDate,
       currentReadingValue: Number(currentReadingValue),
       ratePerUnitMinor: parseMoneyToMinor(ratePerUnit),
@@ -315,13 +344,24 @@ function MeterReadingsPanel({ unitId, leaseId }: { unitId: string; leaseId: stri
     setCurrentReadingValue("");
   }
 
+  if (subMeters.length === 0) {
+    return (
+      <Typography color="text.secondary" variant="body2">
+        No sub-meter has been assigned to this unit yet. Add one from the Properties page (main meter on
+        the property, then a sub-meter for this unit) before recording readings.
+      </Typography>
+    );
+  }
+
   return (
     <Stack spacing={2}>
       <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
-        <TextField select label="Meter" value={meterType} onChange={(e) => setMeterType(e.target.value as MeterType)} size="small">
-          <MenuItem value="electricity">Electricity</MenuItem>
-          <MenuItem value="water">Water</MenuItem>
-          <MenuItem value="gas">Gas</MenuItem>
+        <TextField select label="Meter" value={meterId} onChange={(e) => setMeterId(e.target.value)} size="small" sx={{ minWidth: 180 }}>
+          {subMeters.map((m) => (
+            <MenuItem key={m.id} value={m.id}>
+              {m.label} ({m.utilityType})
+            </MenuItem>
+          ))}
         </TextField>
         <TextField
           label="Reading date"
@@ -345,7 +385,7 @@ function MeterReadingsPanel({ unitId, leaseId }: { unitId: string; leaseId: stri
           value={ratePerUnit}
           onChange={(e) => setRatePerUnit(e.target.value)}
         />
-        <Button variant="contained" size="small" disabled={creating || !currentReadingValue} onClick={handleAddReading}>
+        <Button variant="contained" size="small" disabled={creating || !meterId || !currentReadingValue} onClick={handleAddReading}>
           Record Reading
         </Button>
       </Stack>
@@ -467,12 +507,22 @@ export default function LeaseLedger() {
                   <Typography>{lease.dueDayOfMonth}</Typography>
                 </Grid>
                 <Grid item xs={6} sm={3}>
+                  <Typography variant="caption" color="text.secondary">Frequency</Typography>
+                  <Typography>{FREQUENCY_LABELS[lease.rentFrequency]}</Typography>
+                </Grid>
+                <Grid item xs={6} sm={3}>
                   <Typography variant="caption" color="text.secondary">Term</Typography>
                   <Typography variant="body2">
                     {lease.startDate.slice(0, 10)} → {lease.endDate.slice(0, 10)}
                   </Typography>
                 </Grid>
               </Grid>
+              {lease.backfilledThrough && (
+                <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
+                  Historical rent was auto-generated (paid) from the lease start through{" "}
+                  {lease.backfilledThrough.slice(0, 10)} — see the Invoices tab.
+                </Typography>
+              )}
               {lease.amendments.length > 0 && (
                 <>
                   <Divider sx={{ my: 2 }} />
@@ -578,7 +628,10 @@ export default function LeaseLedger() {
                     <TableCell align="right">{formatMoney(invoice.totalMinor)}</TableCell>
                     <TableCell align="right">{formatMoney(invoice.amountPaidMinor)}</TableCell>
                     <TableCell>
-                      <Chip size="small" label={invoice.status} color={STATUS_COLOR[invoice.status]} />
+                      <Stack direction="row" spacing={0.5}>
+                        <Chip size="small" label={invoice.status} color={STATUS_COLOR[invoice.status]} />
+                        {invoice.isBackfilled && <Chip size="small" variant="outlined" label="Historical" />}
+                      </Stack>
                     </TableCell>
                     <TableCell align="right">
                       {invoice.status !== "paid" && (
@@ -611,6 +664,7 @@ export default function LeaseLedger() {
           depositAmountMinor: lease.depositAmountMinor,
           dueDayOfMonth: lease.dueDayOfMonth,
           endDate: lease.endDate,
+          rentFrequency: lease.rentFrequency,
         }}
         open={amendOpen}
         onClose={() => setAmendOpen(false)}

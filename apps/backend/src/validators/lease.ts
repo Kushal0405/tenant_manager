@@ -13,6 +13,8 @@ const lateFeeRuleSchema = z
     { message: "feeValueMinor is required for flat fees, feePercent for percent fees" },
   );
 
+const rentFrequencySchema = z.enum(["monthly", "quarterly", "half_yearly", "yearly"]);
+
 export const createLeaseSchema = z.object({
   unit: z.string().min(1),
   tenant: z.string().min(1),
@@ -21,6 +23,7 @@ export const createLeaseSchema = z.object({
   rentAmountMinor: z.number().int().min(0),
   depositAmountMinor: z.number().int().min(0),
   dueDayOfMonth: z.number().int().min(1).max(31),
+  rentFrequency: rentFrequencySchema.default("monthly"),
   lateFeeRule: lateFeeRuleSchema,
 });
 
@@ -34,6 +37,7 @@ export const amendLeaseSchema = z.object({
       dueDayOfMonth: z.number().int().min(1).max(31).optional(),
       endDate: z.coerce.date().optional(),
       lateFeeRule: lateFeeRuleSchema.optional(),
+      rentFrequency: rentFrequencySchema.optional(),
     })
     .refine((changes) => Object.keys(changes).length > 0, {
       message: "At least one field must change",

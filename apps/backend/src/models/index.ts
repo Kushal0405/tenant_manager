@@ -7,5 +7,6 @@ export * from "./Invoice.js";
 export * from "./Payment.js";
 export * from "./Expense.js";
 export * from "./TaxPayment.js";
+export * from "./Meter.js";
 export * from "./UtilityMeterReading.js";
 export * from "./LedgerEntry.js";

@@ -4,6 +4,7 @@ import { authRouter } from "./routes/authRoutes.js";
 import { expenseRouter } from "./routes/expenseRoutes.js";
 import { invoiceRouter } from "./routes/invoiceRoutes.js";
 import { leaseRouter } from "./routes/leaseRoutes.js";
+import { meterRouter } from "./routes/meterRoutes.js";
 import { meterReadingRouter } from "./routes/meterReadingRoutes.js";
 import { paymentRouter } from "./routes/paymentRoutes.js";
 import { propertyRouter } from "./routes/propertyRoutes.js";
@@ -33,6 +34,7 @@ export function createApp(): Express {
   app.use("/api/payments", requireAuth, paymentRouter);
   app.use("/api/expenses", requireAuth, expenseRouter);
   app.use("/api/tax-payments", requireAuth, taxPaymentRouter);
+  app.use("/api/meters", requireAuth, meterRouter);
   app.use("/api/meter-readings", requireAuth, meterReadingRouter);
   app.use("/api/reports", requireAuth, reportRouter);
 

@@ -18,7 +18,9 @@ const invoiceSchema = new Schema(
   {
     lease: { type: Schema.Types.ObjectId, ref: "Lease", required: true, index: true },
     owner: { type: Schema.Types.ObjectId, ref: "User", required: true, index: true },
-    month: { type: String, required: true }, // "YYYY-MM"
+    month: { type: String, required: true }, // display label for the period, e.g. "2026-03" or "2026-Q1"
+    periodStart: { type: Date, required: true },
+    periodEnd: { type: Date, required: true },
     issueDate: { type: Date, required: true },
     dueDate: { type: Date, required: true, index: true },
     lineItems: { type: [invoiceLineItemSchema], default: [] },
@@ -32,11 +34,12 @@ const invoiceSchema = new Schema(
       required: true,
     },
     lateFeeApplied: { type: Boolean, default: false, required: true },
+    isBackfilled: { type: Boolean, default: false, required: true },
   },
   { timestamps: { createdAt: true, updatedAt: false } },
 );
 
-invoiceSchema.index({ lease: 1, month: 1 }, { unique: true });
+invoiceSchema.index({ lease: 1, periodStart: 1 }, { unique: true });
 invoiceSchema.index({ owner: 1, status: 1 });
 
 applyIdTransform(invoiceSchema);

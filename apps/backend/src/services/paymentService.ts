@@ -7,10 +7,12 @@ export interface RecordPaymentInput {
   invoiceId: string;
   ownerId: string;
   amountMinor: number;
-  method: "cash" | "bank" | "upi" | "card";
+  method: "cash" | "bank" | "upi" | "card" | "other";
   date: Date;
   recordedBy: string;
   note?: string;
+  /** True for a payment auto-recorded by the historical rent backfill (assumed paid), not actually collected via the app. */
+  isBackfilled?: boolean;
 }
 
 /** Records a payment against an invoice. Partial payments are supported. */
@@ -37,6 +39,7 @@ export async function recordPayment(input: RecordPaymentInput) {
     date: input.date,
     recordedBy: input.recordedBy,
     note: input.note,
+    isBackfilled: input.isBackfilled ?? false,
   });
 
   invoice.amountPaidMinor += input.amountMinor;

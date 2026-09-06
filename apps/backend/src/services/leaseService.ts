@@ -2,6 +2,13 @@ import { Lease, Tenant, Unit, type LeaseDoc } from "../models/index.js";
 import type { HydratedDocument } from "mongoose";
 import { appendLedgerEntry } from "./ledgerService.js";
 import { badRequest, notFound } from "../utils/httpError.js";
+import {
+  getOrCreatePeriodInvoice,
+  periodEndExclusive,
+  periodStartContaining,
+  type RentFrequency,
+} from "./billingService.js";
+import { recordPayment } from "./paymentService.js";
 
 export interface LateFeeRuleInput {
   graceDays: number;
@@ -19,8 +26,14 @@ export interface CreateLeaseInput {
   rentAmountMinor: number;
   depositAmountMinor: number;
   dueDayOfMonth: number;
+  rentFrequency: RentFrequency;
   lateFeeRule: LateFeeRuleInput;
 }
+
+// Safety cap on how many past periods a single lease creation will backfill
+// (50 years of monthly rent) — well beyond any realistic "rent started years
+// ago" case, but bounds the work done in one request.
+const MAX_BACKFILL_PERIODS = 600;
 
 export async function createLease(input: CreateLeaseInput) {
   const unit = await Unit.findOne({ _id: input.unit, owner: input.owner });
@@ -51,7 +64,51 @@ export async function createLease(input: CreateLeaseInput) {
     });
   }
 
+  await backfillHistoricalRent(lease, input.owner);
+
   return lease;
+}
+
+/**
+ * When a lease's rent start date is in the past, generates a real (paid)
+ * invoice for every fully-elapsed billing period since then, so the ledger
+ * looks exactly as it would have if the app had been tracking rent from day
+ * one. The still-in-progress current period is left to the normal billing
+ * flow (unpaid until actually collected).
+ */
+async function backfillHistoricalRent(lease: HydratedDocument<LeaseDoc>, ownerId: string) {
+  const now = new Date();
+  const frequency = lease.rentFrequency as RentFrequency;
+  const currentPeriodStart = periodStartContaining(lease.startDate, frequency, now);
+
+  let cursor = periodStartContaining(lease.startDate, frequency, lease.startDate);
+  let periodsGenerated = 0;
+
+  while (cursor.getTime() < currentPeriodStart.getTime() && periodsGenerated < MAX_BACKFILL_PERIODS) {
+    const { invoice } = await getOrCreatePeriodInvoice(lease, cursor, cursor, { isBackfilled: true });
+
+    if (invoice.status !== "paid") {
+      const outstanding = invoice.totalMinor - invoice.amountPaidMinor;
+      await recordPayment({
+        invoiceId: invoice._id.toString(),
+        ownerId,
+        amountMinor: outstanding,
+        method: "other",
+        date: invoice.dueDate,
+        recordedBy: ownerId,
+        note: `Backfilled historical rent for ${invoice.month}`,
+        isBackfilled: true,
+      });
+    }
+
+    cursor = periodEndExclusive(cursor, frequency);
+    periodsGenerated += 1;
+  }
+
+  if (periodsGenerated > 0) {
+    lease.backfilledThrough = cursor;
+    await lease.save();
+  }
 }
 
 export interface LeaseTermChanges {
@@ -60,6 +117,7 @@ export interface LeaseTermChanges {
   dueDayOfMonth?: number;
   endDate?: Date;
   lateFeeRule?: LateFeeRuleInput;
+  rentFrequency?: RentFrequency;
 }
 
 /**
@@ -90,6 +148,7 @@ export async function amendLease(
   if (changes.dueDayOfMonth !== undefined) lease.dueDayOfMonth = changes.dueDayOfMonth;
   if (changes.endDate !== undefined) lease.endDate = changes.endDate;
   if (changes.lateFeeRule !== undefined) lease.lateFeeRule = changes.lateFeeRule;
+  if (changes.rentFrequency !== undefined) lease.rentFrequency = changes.rentFrequency;
 
   await lease.save();
   return lease;

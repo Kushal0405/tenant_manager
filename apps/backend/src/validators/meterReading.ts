@@ -1,8 +1,7 @@
 import { z } from "zod";
 
 export const createMeterReadingSchema = z.object({
-  unit: z.string().min(1),
-  meterType: z.enum(["electricity", "water", "gas"]),
+  meter: z.string().min(1),
   readingDate: z.coerce.date(),
   currentReadingValue: z.number().min(0),
   ratePerUnitMinor: z.number().int().min(0),
@@ -11,8 +10,6 @@ export const createMeterReadingSchema = z.object({
 
 export const billMeterReadingSchema = z.object({
   lease: z.string().min(1),
-  month: z
-    .string()
-    .regex(/^\d{4}-\d{2}$/)
-    .optional(),
+  // Any date within the target billing period; defaults to the lease's current period.
+  periodDate: z.coerce.date().optional(),
 });

@@ -7,6 +7,7 @@ export const createUnitSchema = z.object({
   bathrooms: z.number().int().min(0),
   sqft: z.number().min(0),
   baseRentMinor: z.number().int().min(0),
+  floor: z.number().int().min(0).optional(),
 });
 
 export const updateUnitSchema = createUnitSchema.partial().omit({ property: true });
