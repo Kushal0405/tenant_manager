@@ -5,7 +5,6 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 export const tenantRouter = Router();
 
 tenantRouter.get("/", asyncHandler(tenantController.list));
-tenantRouter.post("/self", asyncHandler(tenantController.markSelfAsLessee));
 tenantRouter.get("/:id", asyncHandler(tenantController.get));
 tenantRouter.post("/", asyncHandler(tenantController.create));
 tenantRouter.patch("/:id", asyncHandler(tenantController.update));

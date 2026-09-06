@@ -23,8 +23,15 @@ const propertySchema = new Schema(
       enum: ["flat", "hall", "plot", "shop"],
       required: true,
     },
-    // Only meaningful for type "flat".
+    // Whether this account owns the property (manages units/leases/billing)
+    // or is the lessee renting it from an outside landlord.
+    myRole: { type: String, enum: ["owner", "lessee"], default: "owner", required: true },
+    // Only meaningful for type "flat" and myRole "owner".
     numberOfFloors: { type: Number, min: 1 },
+    // Only set when myRole is "lessee" — the actual landlord, who may not use this app.
+    landlordName: { type: String, trim: true },
+    landlordPhone: { type: String, trim: true },
+    landlordEmail: { type: String, trim: true, lowercase: true },
   },
   { timestamps: { createdAt: true, updatedAt: false } },
 );

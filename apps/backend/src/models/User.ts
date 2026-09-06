@@ -13,11 +13,6 @@ const userSchema = new Schema(
       index: true,
     },
     passwordHash: { type: String, required: true },
-    roles: {
-      type: [{ type: String, enum: ["owner", "lessee", "manager"] }],
-      default: ["owner"],
-      required: true,
-    },
   },
   { timestamps: { createdAt: true, updatedAt: false } },
 );

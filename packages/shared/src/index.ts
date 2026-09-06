@@ -29,17 +29,13 @@ export interface Paginated<T> {
 // Auth
 // ---------------------------------------------------------------------------
 
-// A single account can wear more than one hat — e.g. an owner who also rents
-// a place elsewhere and marks themselves as a lessee on that lease. This is a
-// classification, not a separate login/permission system: every account
-// still logs in and manages its own data the same way.
-export type UserRole = "owner" | "lessee" | "manager";
-
+// There's only one kind of account. Whether someone is acting as an owner or
+// a lessee is a property-by-property fact (Property.myRole), not a property
+// of the account — the same user can own one property and rent another.
 export interface UserPublic {
   id: string;
   name: string;
   email: string;
-  roles: UserRole[];
   createdAt: string;
 }
 
@@ -63,14 +59,29 @@ export interface Address {
   country: string;
 }
 
+/**
+ * Whether the account that added this property is the owner renting it out,
+ * or the lessee renting it from someone else. Determines what else the
+ * property carries: an "owner" property gets units/leases/billing managed
+ * by this account; a "lessee" property auto-creates a single unit + a lease
+ * where this account is the tenant, tracking rent paid to an outside
+ * landlord (landlordName/Phone/Email) rather than billing anyone.
+ */
+export type PropertyRole = "owner" | "lessee";
+
 export interface Property {
   id: string;
   owner: string;
   name: string;
   address: Address;
   type: PropertyType;
-  /** Only meaningful for type "flat" — how many floors the building has. */
+  myRole: PropertyRole;
+  /** Only meaningful for type "flat" and myRole "owner" — how many floors the building has. */
   numberOfFloors?: number;
+  /** Only set when myRole is "lessee" — contact info for the actual landlord (who may not use this app). */
+  landlordName?: string;
+  landlordPhone?: string;
+  landlordEmail?: string;
   createdAt: string;
 }
 
@@ -91,6 +102,23 @@ export interface Unit {
   createdAt: string;
 }
 
+/** Extra input required when creating a Property with myRole "lessee" — sets up the auto-created unit, self-tenant, and lease in one step. */
+export interface SelfLeaseInput {
+  tenantPhone: string;
+  rentAmountMinor: MoneyMinor;
+  depositAmountMinor: MoneyMinor;
+  startDate: string;
+  endDate: string;
+  dueDayOfMonth: number;
+  rentFrequency: RentFrequency;
+}
+
+export interface LandlordContact {
+  name: string;
+  phone?: string;
+  email?: string;
+}
+
 // ---------------------------------------------------------------------------
 // Tenant
 // ---------------------------------------------------------------------------
@@ -104,8 +132,8 @@ export interface Tenant {
   alternatePhone?: string;
   idProofType?: string;
   idProofNumber?: string;
-  /** Set when this tenant record IS the app's own logged-in user — i.e. the
-   * owner is renting a place themselves and marked themselves as the lessee. */
+  /** Set when this tenant record IS the app's own logged-in user — auto-created
+   * when they add a property with myRole "lessee" (they're renting it themselves). */
   linkedUserId?: string;
   createdAt: string;
 }

@@ -19,33 +19,12 @@ import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import type { RentFrequency, Tenant } from "@rent-manager/shared";
-import { useCreateTenantMutation, useListTenantsQuery, useMarkSelfAsLesseeMutation } from "../api/tenantsApi";
+import { useCreateTenantMutation, useListTenantsQuery } from "../api/tenantsApi";
 import { useCreateLeaseMutation, useListLeasesQuery } from "../api/leasesApi";
 import { useListUnitsQuery } from "../api/unitsApi";
 import { useAppSelector } from "../app/hooks";
 import { parseMoneyToMinor } from "../utils/money";
-
-const FREQUENCY_LABELS: Record<RentFrequency, string> = {
-  monthly: "Monthly",
-  quarterly: "Quarterly",
-  half_yearly: "Half-yearly",
-  yearly: "Yearly",
-};
-
-const FREQUENCY_MONTHS: Record<RentFrequency, number> = {
-  monthly: 1,
-  quarterly: 3,
-  half_yearly: 6,
-  yearly: 12,
-};
-
-/** Rough client-side estimate of how many past periods will be backfilled — the server computes the real figure. */
-function estimateBackfillPeriods(startDate: string, frequency: RentFrequency): number {
-  const start = new Date(startDate);
-  const now = new Date();
-  const months = (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth());
-  return Math.max(0, Math.floor(months / FREQUENCY_MONTHS[frequency]));
-}
+import { estimateBackfillPeriods, FREQUENCY_LABELS } from "../utils/rentFrequency";
 
 function AddTenantDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [name, setName] = useState("");
@@ -72,44 +51,6 @@ function AddTenantDialog({ open, onClose }: { open: boolean; onClose: () => void
       <DialogActions>
         <Button onClick={onClose}>Cancel</Button>
         <Button variant="contained" disabled={!name || !email || !phone || isLoading} onClick={handleSubmit}>
-          Save
-        </Button>
-      </DialogActions>
-    </Dialog>
-  );
-}
-
-function MarkSelfAsLesseeDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [phone, setPhone] = useState("");
-  const [idProofType, setIdProofType] = useState("");
-  const [idProofNumber, setIdProofNumber] = useState("");
-  const [markSelf, { isLoading, error }] = useMarkSelfAsLesseeMutation();
-
-  async function handleSubmit() {
-    await markSelf({
-      phone,
-      idProofType: idProofType || undefined,
-      idProofNumber: idProofNumber || undefined,
-    }).unwrap();
-    onClose();
-  }
-
-  return (
-    <Dialog open={open} onClose={onClose} fullWidth maxWidth="xs">
-      <DialogTitle>Mark Myself as a Lessee</DialogTitle>
-      <DialogContent sx={{ display: "flex", flexDirection: "column", gap: 2, pt: 1 }}>
-        <Typography variant="body2" color="text.secondary">
-          If you're renting a place yourself, this adds you as a tenant record (using your account's
-          name and email) so it can be tracked the same way as any other lessee.
-        </Typography>
-        <TextField label="Phone" value={phone} onChange={(e) => setPhone(e.target.value)} fullWidth />
-        <TextField label="ID proof type (optional)" value={idProofType} onChange={(e) => setIdProofType(e.target.value)} fullWidth />
-        <TextField label="ID proof number (optional)" value={idProofNumber} onChange={(e) => setIdProofNumber(e.target.value)} fullWidth />
-        {error && <Alert severity="error">Could not complete this action.</Alert>}
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Cancel</Button>
-        <Button variant="contained" disabled={!phone || isLoading} onClick={handleSubmit}>
           Save
         </Button>
       </DialogActions>
@@ -255,27 +196,17 @@ export default function Tenants() {
   const { data: tenants = [], isLoading } = useListTenantsQuery();
   const { data: leases = [] } = useListLeasesQuery();
   const [addTenantOpen, setAddTenantOpen] = useState(false);
-  const [markSelfOpen, setMarkSelfOpen] = useState(false);
   const [leaseDialogTenant, setLeaseDialogTenant] = useState<Tenant | null>(null);
   const navigate = useNavigate();
   const currentUser = useAppSelector((state) => state.auth.user);
-
-  const isAlreadySelfLessee = tenants.some((t) => t.linkedUserId === currentUser?.id);
 
   return (
     <Box>
       <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
         <Typography variant="h4">Tenants</Typography>
-        <Stack direction="row" spacing={1}>
-          {!isAlreadySelfLessee && (
-            <Button variant="outlined" onClick={() => setMarkSelfOpen(true)}>
-              Mark Myself as a Lessee
-            </Button>
-          )}
-          <Button variant="contained" startIcon={<AddIcon />} onClick={() => setAddTenantOpen(true)}>
-            Add Tenant
-          </Button>
-        </Stack>
+        <Button variant="contained" startIcon={<AddIcon />} onClick={() => setAddTenantOpen(true)}>
+          Add Tenant
+        </Button>
       </Stack>
 
       {isLoading && <Typography>Loading…</Typography>}
@@ -328,7 +259,6 @@ export default function Tenants() {
       </Table>
 
       <AddTenantDialog open={addTenantOpen} onClose={() => setAddTenantOpen(false)} />
-      <MarkSelfAsLesseeDialog open={markSelfOpen} onClose={() => setMarkSelfOpen(false)} />
       {leaseDialogTenant && (
         <NewLeaseDialog
           tenant={leaseDialogTenant}
