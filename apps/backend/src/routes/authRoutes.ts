@@ -8,3 +8,4 @@ export const authRouter = Router();
 authRouter.post("/register", asyncHandler(authController.register));
 authRouter.post("/login", asyncHandler(authController.login));
 authRouter.get("/me", requireAuth, asyncHandler(authController.me));
+authRouter.get("/users", requireAuth, asyncHandler(authController.searchUsers));

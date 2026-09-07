@@ -1,4 +1,4 @@
-import type { AuthResponse, UserPublic } from "@rent-manager/shared";
+import type { AuthResponse, UserPublic, UserSearchResult } from "@rent-manager/shared";
 import { baseApi } from "./baseApi";
 
 export const authApi = baseApi.injectEndpoints({
@@ -12,7 +12,10 @@ export const authApi = baseApi.injectEndpoints({
     me: builder.query<UserPublic, void>({
       query: () => "/auth/me",
     }),
+    searchUsers: builder.query<UserSearchResult[], string>({
+      query: (q) => ({ url: "/auth/users", params: { q } }),
+    }),
   }),
 });
 
-export const { useLoginMutation, useRegisterMutation, useMeQuery } = authApi;
+export const { useLoginMutation, useRegisterMutation, useMeQuery, useLazySearchUsersQuery } = authApi;

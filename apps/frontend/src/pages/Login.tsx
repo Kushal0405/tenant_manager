@@ -47,12 +47,31 @@ export default function Login() {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        bgcolor: "grey.100",
+        bgcolor: "background.default",
+        p: 2,
       }}
     >
-      <Paper sx={{ p: 4, width: 380 }} elevation={3}>
-        <Typography variant="h5" gutterBottom>
-          Property Rent Manager
+      <Paper variant="outlined" sx={{ p: 4, width: 400, borderRadius: 3.5 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, mb: 0.5 }}>
+          <Box
+            sx={{
+              width: 28,
+              height: 28,
+              borderRadius: 1.5,
+              bgcolor: "primary.main",
+              color: "primary.contrastText",
+              display: "grid",
+              placeItems: "center",
+              fontSize: 15,
+              fontWeight: 700,
+            }}
+          >
+            R
+          </Box>
+          <Typography variant="h5">Rent Manager</Typography>
+        </Box>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Sign in to manage your properties, tenants, and rent.
         </Typography>
         <Tabs value={mode} onChange={(_e, v) => setMode(v)} sx={{ mb: 2 }}>
           <Tab label="Sign in" value="login" />
@@ -79,7 +98,7 @@ export default function Login() {
             fullWidth
           />
           {error && <Alert severity="error">Something went wrong. Check your credentials.</Alert>}
-          <Button type="submit" variant="contained" disabled={isLoading}>
+          <Button type="submit" variant="contained" size="large" disabled={isLoading} sx={{ mt: 0.5 }}>
             {mode === "login" ? "Sign in" : "Create account"}
           </Button>
         </Box>

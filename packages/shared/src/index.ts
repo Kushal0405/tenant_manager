@@ -132,10 +132,43 @@ export interface Tenant {
   alternatePhone?: string;
   idProofType?: string;
   idProofNumber?: string;
-  /** Set when this tenant record IS the app's own logged-in user — auto-created
-   * when they add a property with myRole "lessee" (they're renting it themselves). */
+  /** Set when this tenant record is linked to an app user account — the owner
+   * themselves (auto-linked when they add a property with myRole "lessee") or
+   * another registered user the owner invited so the tenant can log in. */
   linkedUserId?: string;
+  /** Populated on GET responses when linkedUserId is set. */
+  linkedUserName?: string;
+  linkedUserEmail?: string;
   createdAt: string;
+}
+
+/** One rental agreement in a tenant's history, with the unit/property it was for. */
+export interface TenantLeaseSummary {
+  leaseId: string;
+  unitId: string;
+  unitLabel: string;
+  propertyId: string;
+  propertyName: string;
+  status: LeaseStatus;
+  startDate: string;
+  endDate: string;
+  rentAmountMinor: MoneyMinor;
+  rentFrequency: RentFrequency;
+  currentBalanceMinor: MoneyMinor;
+  depositAmountMinor: MoneyMinor;
+  depositReturnedMinor?: MoneyMinor;
+}
+
+/** Tenant record enriched with their full lease history — the /tenants/:id payload. */
+export interface TenantWithLeases extends Tenant {
+  leases: TenantLeaseSummary[];
+}
+
+/** A registered app user, as returned by the user-search endpoint for linking. */
+export interface UserSearchResult {
+  id: string;
+  name: string;
+  email: string;
 }
 
 // ---------------------------------------------------------------------------

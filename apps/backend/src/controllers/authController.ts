@@ -48,3 +48,18 @@ export async function me(req: Request, res: Response) {
   }
   res.json(user);
 }
+
+// Look up registered users by name or email, so an owner can link an existing
+// account to a tenant record. Returns a small capped list; empty query -> [].
+export async function searchUsers(req: Request, res: Response) {
+  const q = String(req.query.q ?? "").trim();
+  if (q.length < 2) {
+    res.json([]);
+    return;
+  }
+  const rx = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+  const users = await User.find({ $or: [{ name: rx }, { email: rx }] })
+    .select("name email")
+    .limit(10);
+  res.json(users);
+}

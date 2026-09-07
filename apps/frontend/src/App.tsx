@@ -8,6 +8,7 @@ import LeaseLedger from "./pages/LeaseLedger";
 import Login from "./pages/Login";
 import Properties from "./pages/Properties";
 import Reports from "./pages/Reports";
+import TenantDetail from "./pages/TenantDetail";
 import Tenants from "./pages/Tenants";
 
 export default function App() {
@@ -20,6 +21,7 @@ export default function App() {
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="properties" element={<Properties />} />
           <Route path="tenants" element={<Tenants />} />
+          <Route path="tenants/:id" element={<TenantDetail />} />
           <Route path="leases/:id" element={<LeaseLedger />} />
           <Route path="billing" element={<Billing />} />
           <Route path="expenses" element={<Expenses />} />

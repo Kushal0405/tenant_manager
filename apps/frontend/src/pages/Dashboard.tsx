@@ -26,10 +26,14 @@ function StatCard({ label, value, valueColor }: { label: string; value: string; 
   return (
     <Card variant="outlined">
       <CardContent>
-        <Typography variant="caption" color="text.secondary">
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          sx={{ textTransform: "uppercase", letterSpacing: "0.04em", fontWeight: 600 }}
+        >
           {label}
         </Typography>
-        <Typography variant="h5" color={valueColor}>
+        <Typography variant="h5" color={valueColor} sx={{ mt: 0.5 }}>
           {value}
         </Typography>
       </CardContent>
@@ -89,8 +93,8 @@ export default function Dashboard() {
                     <YAxis />
                     <Tooltip formatter={(value: number) => `₹${value.toLocaleString("en-IN")}`} />
                     <Legend />
-                    <Bar dataKey="Income" fill="#1e3a5f" />
-                    <Bar dataKey="Expenses" fill="#d32f2f" />
+                    <Bar dataKey="Income" fill="#232323" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="Expenses" fill="#94a3b8" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </Box>

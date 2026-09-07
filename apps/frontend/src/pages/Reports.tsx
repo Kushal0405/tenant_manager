@@ -119,8 +119,8 @@ export default function Reports() {
                 <YAxis />
                 <Tooltip formatter={(value: number) => `₹${value.toLocaleString("en-IN")}`} />
                 <Legend />
-                <Line type="monotone" dataKey="Income" stroke="#1e3a5f" />
-                <Line type="monotone" dataKey="Net" stroke="#2e7d32" />
+                <Line type="monotone" dataKey="Income" stroke="#232323" strokeWidth={2} dot={false} />
+                <Line type="monotone" dataKey="Net" stroke="#16a34a" strokeWidth={2} dot={false} />
               </LineChart>
             </ResponsiveContainer>
           </Box>
